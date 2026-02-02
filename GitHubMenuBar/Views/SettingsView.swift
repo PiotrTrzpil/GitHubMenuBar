@@ -58,6 +58,13 @@ struct SettingsView: View {
     @AppStorage("autoUnmuteOnlyHumans") private var autoUnmuteOnlyHumans = true
     @AppStorage("autoUnmuteOnlyMentions") private var autoUnmuteOnlyMentions = true
 
+    // Sound alert settings
+    @AppStorage("soundEnabled") private var soundEnabled = true
+    @AppStorage("soundNewReviewRequest") private var soundNewReviewRequest = true
+    @AppStorage("soundCIFailure") private var soundCIFailure = true
+    @AppStorage("soundPRApproved") private var soundPRApproved = true
+    @AppStorage("soundNewMention") private var soundNewMention = true
+
     @State private var cliStatus: CLIStatus = .notFound
     @State private var isCheckingStatus = true
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
@@ -115,6 +122,31 @@ struct SettingsView: View {
                 }
             } header: {
                 Text("Muted PRs")
+            }
+
+            Section {
+                Toggle("Enable sound alerts", isOn: $soundEnabled)
+                    .help("Play sounds when important events occur")
+
+                if soundEnabled {
+                    Toggle("New review request", isOn: $soundNewReviewRequest)
+                        .help("Sound when someone requests your review")
+                        .padding(.leading, 16)
+
+                    Toggle("CI failure", isOn: $soundCIFailure)
+                        .help("Sound when CI fails on your PR")
+                        .padding(.leading, 16)
+
+                    Toggle("PR approved", isOn: $soundPRApproved)
+                        .help("Sound when your PR gets approved")
+                        .padding(.leading, 16)
+
+                    Toggle("New @mention", isOn: $soundNewMention)
+                        .help("Sound when someone mentions you")
+                        .padding(.leading, 16)
+                }
+            } header: {
+                Text("Sound Alerts")
             }
 
             Section {

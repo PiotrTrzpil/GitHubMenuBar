@@ -106,6 +106,9 @@ final class GitHubService {
             state.lastUpdated = Date()
             state.error = nil
 
+            // Check for sound-worthy events
+            SoundManager.shared.checkAndPlaySounds(for: state)
+
             // Clean up muted IDs for closed PRs
             let openIds = Set(state.openPRs.map { $0.id })
             mutedPRs.unmuteClosed(openPRIds: openIds)

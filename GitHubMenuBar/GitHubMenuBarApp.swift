@@ -42,6 +42,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         AppDelegate.shared = self
 
+        registerDefaults()
         setupStatusItem()
         setupPopover()
         setupBadgeUpdates()
@@ -61,6 +62,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     // MARK: - Setup
+
+    private func registerDefaults() {
+        UserDefaults.standard.register(defaults: [
+            "soundEnabled": true,
+            "soundNewReviewRequest": true,
+            "soundCIFailure": true,
+            "soundPRApproved": true,
+            "soundNewMention": true,
+        ])
+    }
 
     @MainActor
     private func setupStatusItem() {
