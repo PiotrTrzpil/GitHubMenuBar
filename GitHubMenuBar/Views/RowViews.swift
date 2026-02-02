@@ -117,25 +117,24 @@ struct OpenPRRow: View {
 
                             Spacer()
 
-                            // Mute button (shown on hover or if muted)
-                            if isHovered || isMuted {
-                                Button(action: { service.toggleMute(pr.id) }) {
-                                    ZStack {
-                                        Image(systemName: "bell")
-                                            .font(.system(size: 10))
-                                        // Diagonal slash line (always shown)
-                                        Rectangle()
-                                            .fill(isMuted ? AppColors.muted : Color.primary)
-                                            .frame(width: 14, height: 1.5)
-                                            .rotationEffect(.degrees(-45))
-                                    }
-                                    .frame(width: 20, height: 20)
-                                    .contentShape(Rectangle())
+                            // Mute button (always present to avoid layout shifts)
+                            Button(action: { service.toggleMute(pr.id) }) {
+                                ZStack {
+                                    Image(systemName: "bell")
+                                        .font(.system(size: 10))
+                                    // Diagonal slash line
+                                    Rectangle()
+                                        .fill(isMuted ? AppColors.muted : Color.primary)
+                                        .frame(width: 14, height: 1.5)
+                                        .rotationEffect(.degrees(-45))
                                 }
-                                .buttonStyle(.plain)
-                                .foregroundColor(isMuted ? AppColors.muted : .secondary)
-                                .help(isMuted ? "Unmute" : "Mute")
+                                .frame(width: 20, height: 20)
+                                .contentShape(Rectangle())
                             }
+                            .buttonStyle(.plain)
+                            .foregroundColor(isMuted ? AppColors.muted : .secondary)
+                            .opacity(isHovered || isMuted ? 1 : 0)
+                            .help(isMuted ? "Unmute" : "Mute")
 
                             // Attention indicator (dimmed if muted)
                             if pr.needsAttention == true {
