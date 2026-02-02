@@ -28,6 +28,7 @@ struct PullRequest: Identifiable, Codable, Hashable {
     var mergedAt: Date?
     var additions: Int?
     var deletions: Int?
+    var hasExternalActivity: Bool?
 
     // For closed PRs
     var closedAt: Date?
@@ -38,7 +39,7 @@ struct PullRequest: Identifiable, Codable, Hashable {
         case mergeable, reviewDecision, statusCheckRollup
         case needsAttention, attentionReasons
         case commentsCount, approvalsCount, reviewersCount, failingCheck
-        case mergedAt, additions, deletions
+        case mergedAt, additions, deletions, hasExternalActivity
         case closedAt, closedBy
     }
 
@@ -60,10 +61,12 @@ struct PullRequest: Identifiable, Codable, Hashable {
         approvalsCount = try container.decodeIfPresent(Int.self, forKey: .approvalsCount)
         reviewersCount = try container.decodeIfPresent(Int.self, forKey: .reviewersCount)
         failingCheck = try container.decodeIfPresent(String.self, forKey: .failingCheck)
-        mergedAt = try container.decodeIfPresent(Date.self, forKey: .mergedAt)
+        closedAt = try container.decodeIfPresent(Date.self, forKey: .closedAt)
+        // gh search prs doesn't have mergedAt, use closedAt as fallback for merged PRs
+        mergedAt = try container.decodeIfPresent(Date.self, forKey: .mergedAt) ?? closedAt
         additions = try container.decodeIfPresent(Int.self, forKey: .additions)
         deletions = try container.decodeIfPresent(Int.self, forKey: .deletions)
-        closedAt = try container.decodeIfPresent(Date.self, forKey: .closedAt)
+        hasExternalActivity = try container.decodeIfPresent(Bool.self, forKey: .hasExternalActivity)
         closedBy = try container.decodeIfPresent(String.self, forKey: .closedBy)
     }
 }
@@ -104,10 +107,12 @@ struct GitHubNotification: Identifiable, Codable, Hashable {
     let reason: String
     let title: String
     let url: String?
+    let repoUrl: String?
     let updatedAt: Date
 
     enum CodingKeys: String, CodingKey {
         case reason, title, url
+        case repoUrl = "repo_url"
         case updatedAt = "updated_at"
     }
 }

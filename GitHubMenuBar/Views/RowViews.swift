@@ -5,6 +5,11 @@ import SwiftUI
 struct OpenPRRow: View {
     let pr: PullRequest
     @EnvironmentObject var service: GitHubService
+    @State private var isHovered = false
+
+    private var isMuted: Bool {
+        service.isMuted(pr.id)
+    }
 
     private var ciStatus: CIStatus {
         CIStatus.from(checks: pr.statusCheckRollup)
@@ -15,115 +20,142 @@ struct OpenPRRow: View {
     }
 
     private var ageColor: Color {
-        guard let createdAt = pr.createdAt else { return .green }
+        guard let createdAt = pr.createdAt else { return AppColors.ageFresh }
         let days = Calendar.current.dateComponents([.day], from: createdAt, to: Date()).day ?? 0
 
-        if days < 1 { return .green }
-        if days < 3 { return Color(red: 0.6, green: 0.8, blue: 0.2) } // lime
-        if days < 7 { return .yellow }
-        return .orange
+        if days < 1 { return AppColors.ageFresh }
+        if days < 3 { return AppColors.ageRecent }
+        if days < 7 { return AppColors.ageModerate }
+        return AppColors.ageOld
     }
 
     var body: some View {
-        Button(action: { service.openInBrowser(url: pr.url) }) {
-            HStack(alignment: .top, spacing: 8) {
-                // Age indicator
-                RoundedRectangle(cornerRadius: 2)
-                    .fill(ageColor)
-                    .frame(width: 3)
+        VStack(spacing: 0) {
+            // Main clickable area
+            Button(action: { service.openInBrowser(url: pr.url) }) {
+                HStack(alignment: .top, spacing: 8) {
+                    // Age indicator
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(ageColor)
+                        .frame(width: 3)
 
-                VStack(alignment: .leading, spacing: 4) {
-                    // Repo and PR number
-                    HStack(spacing: 4) {
-                        Text(pr.repository.nameWithOwner)
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
-
-                        Text("#\(pr.number)")
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
-
-                        if pr.isDraft {
-                            Text("Draft")
+                    VStack(alignment: .leading, spacing: 4) {
+                        // Repo and PR number
+                        HStack(spacing: 4) {
+                            Text(pr.repository.nameWithOwner)
                                 .font(.caption2)
+                                .foregroundColor(.secondary)
+
+                            Text("#\(pr.number)")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+
+                            if pr.isDraft {
+                                Text("Draft")
+                                    .font(.caption2)
+                                    .padding(.horizontal, 4)
+                                    .padding(.vertical, 1)
+                                    .background(AppColors.draft.opacity(0.3))
+                                    .cornerRadius(3)
+                            }
+
+                            Spacer()
+
+                            Text(pr.updatedAt.relativeFormatted)
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                        }
+
+                        // Title
+                        Text(pr.title)
+                            .font(.caption)
+                            .fontWeight(.medium)
+                            .lineLimit(1)
+                            .foregroundColor(.primary)
+
+                        // Status badges
+                        HStack(spacing: 6) {
+                            // CI Status
+                            StatusBadge(status: ciStatus, label: pr.failingCheck ?? "CI")
+
+                            // Review progress
+                            if let approvals = pr.approvalsCount, let reviewers = pr.reviewersCount, reviewers > 0 {
+                                HStack(spacing: 2) {
+                                    Image(systemName: "checkmark.circle")
+                                        .font(.system(size: 9))
+                                    Text("\(approvals)/\(reviewers)")
+                                        .font(.caption2)
+                                }
+                                .foregroundColor(approvals >= reviewers ? AppColors.success : AppColors.ciPending)
+                            }
+
+                            // Comments
+                            if let comments = pr.commentsCount, comments > 0 {
+                                HStack(spacing: 2) {
+                                    Image(systemName: "bubble.left")
+                                        .font(.system(size: 9))
+                                    Text("\(comments)")
+                                        .font(.caption2)
+                                }
+                                .foregroundColor(.secondary)
+                            }
+
+                            // Conflicts badge
+                            if hasConflicts {
+                                HStack(spacing: 2) {
+                                    Image(systemName: "exclamationmark.triangle")
+                                        .font(.system(size: 9))
+                                    Text("Conflicts")
+                                        .font(.caption2)
+                                }
                                 .padding(.horizontal, 4)
                                 .padding(.vertical, 1)
-                                .background(Color.gray.opacity(0.3))
+                                .background(AppColors.conflict.opacity(0.2))
+                                .foregroundColor(AppColors.conflict)
                                 .cornerRadius(3)
-                        }
-
-                        Spacer()
-
-                        Text(pr.updatedAt.relativeFormatted)
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
-                    }
-
-                    // Title
-                    Text(pr.title)
-                        .font(.caption)
-                        .fontWeight(.medium)
-                        .lineLimit(1)
-                        .foregroundColor(.primary)
-
-                    // Status badges
-                    HStack(spacing: 6) {
-                        // CI Status
-                        StatusBadge(status: ciStatus, label: pr.failingCheck ?? "CI")
-
-                        // Review progress
-                        if let approvals = pr.approvalsCount, let reviewers = pr.reviewersCount, reviewers > 0 {
-                            HStack(spacing: 2) {
-                                Image(systemName: "checkmark.circle")
-                                    .font(.system(size: 9))
-                                Text("\(approvals)/\(reviewers)")
-                                    .font(.caption2)
                             }
-                            .foregroundColor(approvals >= reviewers ? .green : .yellow)
-                        }
 
-                        // Comments
-                        if let comments = pr.commentsCount, comments > 0 {
-                            HStack(spacing: 2) {
-                                Image(systemName: "bubble.left")
-                                    .font(.system(size: 9))
-                                Text("\(comments)")
-                                    .font(.caption2)
+                            Spacer()
+
+                            // Mute button (shown on hover or if muted)
+                            if isHovered || isMuted {
+                                Button(action: { service.toggleMute(pr.id) }) {
+                                    ZStack {
+                                        Image(systemName: "bell")
+                                            .font(.system(size: 10))
+                                        // Diagonal slash line (always shown)
+                                        Rectangle()
+                                            .fill(isMuted ? AppColors.muted : Color.primary)
+                                            .frame(width: 14, height: 1.5)
+                                            .rotationEffect(.degrees(-45))
+                                    }
+                                    .frame(width: 20, height: 20)
+                                    .contentShape(Rectangle())
+                                }
+                                .buttonStyle(.plain)
+                                .foregroundColor(isMuted ? AppColors.muted : .secondary)
+                                .help(isMuted ? "Unmute" : "Mute")
                             }
-                            .foregroundColor(.secondary)
-                        }
 
-                        // Conflicts badge
-                        if hasConflicts {
-                            HStack(spacing: 2) {
-                                Image(systemName: "exclamationmark.triangle")
-                                    .font(.system(size: 9))
-                                Text("Conflicts")
-                                    .font(.caption2)
+                            // Attention indicator (dimmed if muted)
+                            if pr.needsAttention == true {
+                                Circle()
+                                    .fill(AppColors.attention)
+                                    .opacity(isMuted ? 0.3 : 1.0)
+                                    .frame(width: 8, height: 8)
                             }
-                            .padding(.horizontal, 4)
-                            .padding(.vertical, 1)
-                            .background(Color.yellow.opacity(0.2))
-                            .foregroundColor(.yellow)
-                            .cornerRadius(3)
-                        }
-
-                        Spacer()
-
-                        // Attention indicator
-                        if pr.needsAttention == true {
-                            Circle()
-                                .fill(Color.orange)
-                                .frame(width: 8, height: 8)
                         }
                     }
                 }
+                .padding(8)
+                .contentShape(Rectangle())
             }
-            .padding(8)
-            .background(Color(NSColor.controlBackgroundColor))
-            .cornerRadius(6)
+            .buttonStyle(.plain)
         }
-        .buttonStyle(.plain)
+        .background(AppColors.cardBackground(hovered: isHovered))
+        .cornerRadius(6)
+        .onHover { isHovered = $0 }
+        .opacity(isMuted ? 0.6 : 1.0)
     }
 }
 
@@ -132,12 +164,13 @@ struct OpenPRRow: View {
 struct MergedPRRow: View {
     let pr: PullRequest
     @EnvironmentObject var service: GitHubService
+    @State private var isHovered = false
 
     var body: some View {
         Button(action: { service.openInBrowser(url: pr.url) }) {
             HStack(alignment: .top, spacing: 8) {
                 RoundedRectangle(cornerRadius: 2)
-                    .fill(Color.purple)
+                    .fill(AppColors.mergedPRs)
                     .frame(width: 3)
 
                 VStack(alignment: .leading, spacing: 4) {
@@ -169,19 +202,20 @@ struct MergedPRRow: View {
                         if let additions = pr.additions {
                             Text("+\(additions)")
                                 .font(.caption2)
-                                .foregroundColor(.green)
+                                .foregroundColor(AppColors.additions)
                         }
                         if let deletions = pr.deletions {
                             Text("-\(deletions)")
                                 .font(.caption2)
-                                .foregroundColor(.red)
+                                .foregroundColor(AppColors.deletions)
                         }
                     }
                 }
             }
             .padding(8)
-            .background(Color(NSColor.controlBackgroundColor))
+            .background(AppColors.cardBackground(hovered: isHovered))
             .cornerRadius(6)
+            .onHover { isHovered = $0 }
         }
         .buttonStyle(.plain)
     }
@@ -192,12 +226,13 @@ struct MergedPRRow: View {
 struct ReviewRequestRow: View {
     let review: ReviewRequest
     @EnvironmentObject var service: GitHubService
+    @State private var isHovered = false
 
     var body: some View {
         Button(action: { service.openInBrowser(url: review.url) }) {
             HStack(alignment: .top, spacing: 8) {
                 RoundedRectangle(cornerRadius: 2)
-                    .fill(Color.orange)
+                    .fill(AppColors.reviewRequests)
                     .frame(width: 3)
 
                 VStack(alignment: .leading, spacing: 4) {
@@ -212,7 +247,7 @@ struct ReviewRequestRow: View {
 
                         Text("@\(review.author.login)")
                             .font(.caption2)
-                            .foregroundColor(.orange)
+                            .foregroundColor(AppColors.reviewRequests)
 
                         Spacer()
 
@@ -229,8 +264,9 @@ struct ReviewRequestRow: View {
                 }
             }
             .padding(8)
-            .background(Color(NSColor.controlBackgroundColor))
+            .background(AppColors.cardBackground(hovered: isHovered))
             .cornerRadius(6)
+            .onHover { isHovered = $0 }
         }
         .buttonStyle(.plain)
     }
@@ -241,34 +277,47 @@ struct ReviewRequestRow: View {
 struct NotificationRow: View {
     let notification: GitHubNotification
     @EnvironmentObject var service: GitHubService
+    @State private var isHovered = false
 
     private var icon: (name: String, color: Color) {
         switch notification.reason {
         case "review_requested":
-            return ("eye", .purple)
+            return ("eye", AppColors.reviewRequested)
         case "mention":
-            return ("bubble.left", .blue)
+            return ("bubble.left", AppColors.mention)
         case "author":
-            return ("arrow.triangle.pull", .green)
+            return ("arrow.triangle.pull", AppColors.author)
         case "ci_activity":
-            return ("arrow.clockwise", .yellow)
+            return ("arrow.clockwise", AppColors.ciActivity)
         case "assign":
-            return ("exclamationmark.circle", .orange)
+            return ("exclamationmark.circle", AppColors.assign)
         case "state_change":
-            return ("arrow.triangle.merge", .purple)
+            return ("arrow.triangle.merge", AppColors.stateChange)
         default:
-            return ("bell", .gray)
+            return ("bell", AppColors.defaultNotification)
         }
+    }
+
+    private var webUrl: String? {
+        if let url = notification.url {
+            // Convert API URL to web URL
+            return url
+                .replacingOccurrences(of: "api.github.com/repos", with: "github.com")
+                .replacingOccurrences(of: "/pulls/", with: "/pull/")
+        } else if let repoUrl = notification.repoUrl {
+            // Fallback to repo URL, with /actions suffix for CI activity
+            if notification.reason == "ci_activity" {
+                return "\(repoUrl)/actions"
+            }
+            return repoUrl
+        }
+        return nil
     }
 
     var body: some View {
         Button(action: {
-            if let url = notification.url {
-                // Convert API URL to web URL
-                let webUrl = url
-                    .replacingOccurrences(of: "api.github.com/repos", with: "github.com")
-                    .replacingOccurrences(of: "/pulls/", with: "/pull/")
-                service.openInBrowser(url: webUrl)
+            if let url = webUrl {
+                service.openInBrowser(url: url)
             }
         }) {
             HStack(spacing: 8) {
@@ -290,8 +339,9 @@ struct NotificationRow: View {
             }
             .padding(.vertical, 4)
             .padding(.horizontal, 6)
-            .background(Color(NSColor.controlBackgroundColor).opacity(0.5))
+            .background(AppColors.notificationBackground(hovered: isHovered))
             .cornerRadius(4)
+            .onHover { isHovered = $0 }
         }
         .buttonStyle(.plain)
     }
@@ -302,6 +352,7 @@ struct NotificationRow: View {
 struct IssueRow: View {
     let issue: Issue
     @EnvironmentObject var service: GitHubService
+    @State private var isHovered = false
 
     var body: some View {
         Button(action: { service.openInBrowser(url: issue.url) }) {
@@ -332,8 +383,9 @@ struct IssueRow: View {
                     .foregroundColor(.secondary)
             }
             .padding(8)
-            .background(Color(NSColor.controlBackgroundColor))
+            .background(AppColors.cardBackground(hovered: isHovered))
             .cornerRadius(6)
+            .onHover { isHovered = $0 }
         }
         .buttonStyle(.plain)
     }
@@ -356,10 +408,10 @@ struct StatusBadge: View {
 
     private var color: Color {
         switch status {
-        case .success: return .green
-        case .failure: return .red
-        case .pending: return .yellow
-        case .unknown: return .gray
+        case .success: return AppColors.ciSuccess
+        case .failure: return AppColors.ciFailure
+        case .pending: return AppColors.ciPending
+        case .unknown: return AppColors.ciUnknown
         }
     }
 

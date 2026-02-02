@@ -8,9 +8,50 @@ final class GitHubService: ObservableObject {
     static let shared = GitHubService()
 
     @Published private(set) var state = GitHubState()
+    @Published private(set) var mutedPRIds: Set<String> = []
+
+    // Tracks when each PR was muted (for auto-unmute feature)
+    private var mutedPRTimestamps: [String: Date] = [:]
 
     private var refreshTimer: Timer?
-    private let refreshInterval: TimeInterval = 5 * 60 // 5 minutes
+    private var settingsObserver: NSObjectProtocol?
+    private let mutedPRsKey = "mutedPRIds"
+    private let mutedTimestampsKey = "mutedPRTimestamps"
+
+    // Auto-unmute settings (all default to true)
+    private var autoUnmuteOnActivity: Bool {
+        UserDefaults.standard.object(forKey: "autoUnmuteOnActivity") == nil
+            ? true
+            : UserDefaults.standard.bool(forKey: "autoUnmuteOnActivity")
+    }
+    private var autoUnmuteOnlyHumans: Bool {
+        UserDefaults.standard.object(forKey: "autoUnmuteOnlyHumans") == nil
+            ? true
+            : UserDefaults.standard.bool(forKey: "autoUnmuteOnlyHumans")
+    }
+    private var autoUnmuteOnlyMentions: Bool {
+        UserDefaults.standard.object(forKey: "autoUnmuteOnlyMentions") == nil
+            ? true
+            : UserDefaults.standard.bool(forKey: "autoUnmuteOnlyMentions")
+    }
+
+    /// Refresh interval in minutes, read from UserDefaults
+    private var refreshIntervalMinutes: Int {
+        let interval = UserDefaults.standard.integer(forKey: "refreshInterval")
+        return interval > 0 ? interval : 5 // Default to 5 minutes
+    }
+
+    /// Number of days to show merged PRs, read from UserDefaults
+    private var mergedDays: Int {
+        let days = UserDefaults.standard.integer(forKey: "mergedDays")
+        return days > 0 ? days : 3 // Default to 3 days
+    }
+
+    /// Number of hours to show notifications, read from UserDefaults
+    private var notificationHours: Int {
+        let hours = UserDefaults.standard.integer(forKey: "notificationHours")
+        return hours > 0 ? hours : 24 // Default to 24 hours
+    }
 
     private let decoder: JSONDecoder = {
         let decoder = JSONDecoder()
@@ -19,16 +60,183 @@ final class GitHubService: ObservableObject {
     }()
 
     private init() {
+        loadMutedPRs()
         startAutoRefresh()
+        observeSettingsChanges()
+    }
+
+    // MARK: - Muted PRs
+
+    private func loadMutedPRs() {
+        if let saved = UserDefaults.standard.array(forKey: mutedPRsKey) as? [String] {
+            mutedPRIds = Set(saved)
+        }
+        if let timestamps = UserDefaults.standard.dictionary(forKey: mutedTimestampsKey) as? [String: Double] {
+            mutedPRTimestamps = timestamps.mapValues { Date(timeIntervalSince1970: $0) }
+        }
+    }
+
+    private func saveMutedPRs() {
+        UserDefaults.standard.set(Array(mutedPRIds), forKey: mutedPRsKey)
+        let timestamps = mutedPRTimestamps.mapValues { $0.timeIntervalSince1970 }
+        UserDefaults.standard.set(timestamps, forKey: mutedTimestampsKey)
+    }
+
+    func isMuted(_ prId: String) -> Bool {
+        mutedPRIds.contains(prId)
+    }
+
+    func toggleMute(_ prId: String) {
+        if mutedPRIds.contains(prId) {
+            mutedPRIds.remove(prId)
+            mutedPRTimestamps.removeValue(forKey: prId)
+        } else {
+            mutedPRIds.insert(prId)
+            mutedPRTimestamps[prId] = Date()
+        }
+        saveMutedPRs()
+    }
+
+    /// Unmute a PR (used by auto-unmute feature)
+    private func unmute(_ prId: String) {
+        mutedPRIds.remove(prId)
+        mutedPRTimestamps.removeValue(forKey: prId)
+        saveMutedPRs()
+    }
+
+    func unmuteClosed() {
+        // Remove muted IDs for PRs that are no longer open
+        let openIds = Set(state.openPRs.map { $0.id })
+        let closedMuted = mutedPRIds.subtracting(openIds)
+        if !closedMuted.isEmpty {
+            mutedPRIds.subtract(closedMuted)
+            for id in closedMuted {
+                mutedPRTimestamps.removeValue(forKey: id)
+            }
+            saveMutedPRs()
+        }
+    }
+
+    /// Check muted PRs for new activity and auto-unmute if enabled
+    private func checkAutoUnmute(for prs: [PullRequest]) async {
+        guard autoUnmuteOnActivity else { return }
+        guard let username = state.username else { return }
+
+        // Find muted PRs that might have new activity
+        let mutedPRs = prs.filter { mutedPRIds.contains($0.id) }
+
+        for pr in mutedPRs {
+            guard let muteTime = mutedPRTimestamps[pr.id] else { continue }
+
+            // Check if PR was updated after mute time
+            if pr.updatedAt > muteTime {
+                // Check for qualifying new activity
+                if await hasQualifyingNewActivity(pr: pr, since: muteTime, username: username) {
+                    unmute(pr.id)
+                    print("Auto-unmuted PR \(pr.number) due to new activity")
+                }
+            }
+        }
+    }
+
+    /// Check if a PR has new activity that qualifies for auto-unmute
+    private func hasQualifyingNewActivity(pr: PullRequest, since muteTime: Date, username: String) async -> Bool {
+        do {
+            // Fetch comments and reviews using REST API
+            async let commentsTask = runGH([
+                "api", "repos/\(pr.repository.nameWithOwner)/issues/\(pr.number)/comments"
+            ])
+            async let reviewsTask = runGH([
+                "api", "repos/\(pr.repository.nameWithOwner)/pulls/\(pr.number)/reviews"
+            ])
+
+            let (commentsData, reviewsData) = try await (commentsTask, reviewsTask)
+
+            let comments = (try? JSONSerialization.jsonObject(with: commentsData)) as? [[String: Any]] ?? []
+            let reviews = (try? JSONSerialization.jsonObject(with: reviewsData)) as? [[String: Any]] ?? []
+
+            // Check comments
+            for comment in comments {
+                guard let createdAtStr = comment["created_at"] as? String,
+                      let createdAt = ISO8601DateFormatter().date(from: createdAtStr),
+                      createdAt > muteTime else { continue }
+
+                guard let user = comment["user"] as? [String: Any],
+                      let login = user["login"] as? String,
+                      let type = user["type"] as? String else { continue }
+
+                // Skip self
+                if login.lowercased() == username.lowercased() { continue }
+
+                // Check bot filter
+                if autoUnmuteOnlyHumans && type != "User" { continue }
+                if autoUnmuteOnlyHumans && !isRealUser(login, excludingUsername: username) { continue }
+
+                // Check mentions filter
+                if autoUnmuteOnlyMentions {
+                    let body = comment["body"] as? String ?? ""
+                    if !body.contains("@\(username)") { continue }
+                }
+
+                // This comment qualifies
+                return true
+            }
+
+            // Check reviews
+            for review in reviews {
+                guard let submittedAtStr = review["submitted_at"] as? String,
+                      let submittedAt = ISO8601DateFormatter().date(from: submittedAtStr),
+                      submittedAt > muteTime else { continue }
+
+                guard let user = review["user"] as? [String: Any],
+                      let login = user["login"] as? String,
+                      let type = user["type"] as? String else { continue }
+
+                // Skip self
+                if login.lowercased() == username.lowercased() { continue }
+
+                // Check bot filter
+                if autoUnmuteOnlyHumans && type != "User" { continue }
+                if autoUnmuteOnlyHumans && !isRealUser(login, excludingUsername: username) { continue }
+
+                // Check mentions filter - reviews don't really have mentions, so if onlyMentions is on,
+                // we check the review body
+                if autoUnmuteOnlyMentions {
+                    let body = review["body"] as? String ?? ""
+                    if !body.contains("@\(username)") { continue }
+                }
+
+                // This review qualifies
+                return true
+            }
+
+            return false
+        } catch {
+            print("Failed to check activity for auto-unmute on PR \(pr.number): \(error)")
+            return false
+        }
     }
 
     // MARK: - Auto Refresh
 
     private func startAutoRefresh() {
-        refreshTimer = Timer.scheduledTimer(withTimeInterval: refreshInterval, repeats: true) { [weak self] _ in
+        refreshTimer?.invalidate()
+        let interval = TimeInterval(refreshIntervalMinutes * 60)
+        refreshTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
             Task { @MainActor in
                 await self?.refresh()
             }
+        }
+    }
+
+    private func observeSettingsChanges() {
+        settingsObserver = NotificationCenter.default.addObserver(
+            forName: UserDefaults.didChangeNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            // Restart timer with new interval when settings change
+            self?.startAutoRefresh()
         }
     }
 
@@ -45,10 +253,10 @@ final class GitHubService: ObservableObject {
             }
 
             // Fetch all data concurrently
-            async let prsResult = fetchMyPRs()
+            async let prsResult = fetchMyPRs(mergedDays: mergedDays)
             async let reviewsResult = fetchReviewRequests()
-            async let notificationsResult = fetchNotifications(hours: 24)
-            async let issuesResult = fetchMyIssues(hours: 24)
+            async let notificationsResult = fetchNotifications(hours: notificationHours)
+            async let issuesResult = fetchMyIssues(hours: notificationHours)
 
             let (prs, reviews, notifications, issues) = try await (
                 prsResult, reviewsResult, notificationsResult, issuesResult
@@ -62,6 +270,12 @@ final class GitHubService: ObservableObject {
             state.issues = issues
             state.lastUpdated = Date()
             state.error = nil
+
+            // Clean up muted IDs for closed PRs
+            unmuteClosed()
+
+            // Check for auto-unmute on new activity
+            await checkAutoUnmute(for: prs.open)
 
         } catch {
             state.error = error.localizedDescription
@@ -82,8 +296,22 @@ final class GitHubService: ObservableObject {
         try await withCheckedThrowingContinuation { continuation in
             DispatchQueue.global(qos: .userInitiated).async {
                 let process = Process()
-                process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
-                process.arguments = ["gh"] + arguments
+
+                // Find gh binary - GUI apps don't inherit shell PATH
+                let possiblePaths = [
+                    "/opt/homebrew/bin/gh",  // Apple Silicon Homebrew
+                    "/usr/local/bin/gh",      // Intel Homebrew
+                    "/run/current-system/sw/bin/gh",  // NixOS
+                    "/etc/profiles/per-user/\(NSUserName())/bin/gh"  // Nix home-manager
+                ]
+
+                guard let ghPath = possiblePaths.first(where: { FileManager.default.fileExists(atPath: $0) }) else {
+                    continuation.resume(throwing: GitHubError.cliError("GitHub CLI not found. Install with: brew install gh"))
+                    return
+                }
+
+                process.executableURL = URL(fileURLWithPath: ghPath)
+                process.arguments = arguments
 
                 let pipe = Pipe()
                 process.standardOutput = pipe
@@ -150,7 +378,7 @@ final class GitHubService: ObservableObject {
             "--author", "@me",
             "--merged",
             "--merged-at", ">=\(sinceStr)",
-            "--json", "number,title,url,repository,updatedAt,mergedAt,additions,deletions",
+            "--json", "number,title,url,repository,updatedAt,closedAt",
             "--limit", "50"
         ], as: [PullRequest].self)
 
@@ -167,6 +395,10 @@ final class GitHubService: ObservableObject {
 
         // Enrich open PRs with additional details
         open = await enrichOpenPRs(open)
+
+        // Enrich merged PRs and filter to only those with external activity
+        merged = await enrichMergedPRs(merged)
+        merged = merged.filter { $0.hasExternalActivity == true }
 
         // Filter out merged PRs from closed list
         let mergedNumbers = Set(merged.map { $0.number })
@@ -189,6 +421,90 @@ final class GitHubService: ObservableObject {
             }
             return enriched.sorted { $0.updatedAt > $1.updatedAt }
         }
+    }
+
+    private func enrichMergedPRs(_ prs: [PullRequest]) async -> [PullRequest] {
+        guard let username = state.username else { return prs }
+
+        return await withTaskGroup(of: PullRequest.self) { group in
+            for pr in prs {
+                group.addTask {
+                    await self.checkExternalActivity(pr, username: username)
+                }
+            }
+
+            var enriched: [PullRequest] = []
+            for await pr in group {
+                enriched.append(pr)
+            }
+            return enriched.sorted { ($0.mergedAt ?? $0.updatedAt) > ($1.mergedAt ?? $1.updatedAt) }
+        }
+    }
+
+    private func checkExternalActivity(_ pr: PullRequest, username: String) async -> PullRequest {
+        var enriched = pr
+
+        do {
+            // Use REST API which properly returns "type" field to identify bots
+            async let commentsTask = runGH([
+                "api", "repos/\(pr.repository.nameWithOwner)/issues/\(pr.number)/comments"
+            ])
+            async let reviewsTask = runGH([
+                "api", "repos/\(pr.repository.nameWithOwner)/pulls/\(pr.number)/reviews"
+            ])
+
+            let (commentsData, reviewsData) = try await (commentsTask, reviewsTask)
+
+            let comments = (try? JSONSerialization.jsonObject(with: commentsData)) as? [[String: Any]] ?? []
+            let reviews = (try? JSONSerialization.jsonObject(with: reviewsData)) as? [[String: Any]] ?? []
+
+            // Check for comments from real users (not bots, not self)
+            // REST API uses "user" instead of "author", and includes "type" field
+            let hasExternalComments = comments.contains { comment in
+                guard let user = comment["user"] as? [String: Any],
+                      let login = user["login"] as? String,
+                      let type = user["type"] as? String else { return false }
+                return type == "User" && isRealUser(login, excludingUsername: username)
+            }
+
+            // Check for reviews from real users (not bots, not self)
+            let hasExternalReviews = reviews.contains { review in
+                guard let user = review["user"] as? [String: Any],
+                      let login = user["login"] as? String,
+                      let type = user["type"] as? String else { return false }
+                return type == "User" && isRealUser(login, excludingUsername: username)
+            }
+
+            enriched.hasExternalActivity = hasExternalComments || hasExternalReviews
+        } catch {
+            print("Failed to check activity for PR \(pr.number): \(error)")
+            enriched.hasExternalActivity = false
+        }
+
+        return enriched
+    }
+
+    /// Check if a username is a real user (not a bot and not the excluded user)
+    private func isRealUser(_ login: String, excludingUsername: String) -> Bool {
+        let lowercased = login.lowercased()
+
+        // Exclude self
+        if lowercased == excludingUsername.lowercased() {
+            return false
+        }
+
+        // Exclude bots (usernames ending with [bot] or -bot)
+        if lowercased.hasSuffix("[bot]") || lowercased.hasSuffix("-bot") {
+            return false
+        }
+
+        // Exclude common bot patterns
+        let botPatterns = ["dependabot", "renovate", "codecov", "github-actions", "mergify", "semantic-release", "vercel", "netlify"]
+        if botPatterns.contains(where: { lowercased.contains($0) }) {
+            return false
+        }
+
+        return true
     }
 
     private func enrichPR(_ pr: PullRequest) async -> PullRequest {
@@ -266,7 +582,7 @@ final class GitHubService: ObservableObject {
         let sinceStr = ISO8601DateFormatter().string(from: since)
 
         let jqFilter = """
-        .[] | select(.updated_at > "\(sinceStr)") | {reason, title: .subject.title, url: .subject.url, updated_at: .updated_at}
+        .[] | select(.updated_at > "\(sinceStr)") | {reason, title: .subject.title, url: .subject.url, repo_url: .repository.html_url, updated_at: .updated_at}
         """
 
         let data = try await runGH(["api", "notifications", "--jq", jqFilter])

@@ -26,17 +26,23 @@ struct GitHubMenuBarApp: App {
 
 /// App delegate handles the menu bar status item and popover
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    static private(set) var shared: AppDelegate!
+
     private lazy var statusItem: NSStatusItem = {
         NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     }()
 
     private var popover: NSPopover?
+    private var settingsWindow: NSWindow?
+    private var colorPreviewWindow: NSWindow?
 
     private var refreshTask: Task<Void, Never>?
     private var badgeSubscription: AnyCancellable?
 
     @MainActor
     func applicationDidFinishLaunching(_ notification: Notification) {
+        AppDelegate.shared = self
+
         setupStatusItem()
         setupPopover()
         setupBadgeUpdates()
@@ -84,14 +90,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @MainActor
     private func setupBadgeUpdates() {
-        // Subscribe to state changes and update badge when review requests change
-        badgeSubscription = GitHubService.shared.$state
-            .map { $0.reviewRequests.count + $0.notifications.count }
-            .removeDuplicates()
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] count in
-                self?.updateBadge(count: count)
-            }
+        // Subscribe to state and muted PRs changes, excluding muted items from badge count
+        badgeSubscription = Publishers.CombineLatest(
+            GitHubService.shared.$state,
+            GitHubService.shared.$mutedPRIds
+        )
+        .map { state, mutedIds in
+            // Count review requests (incoming reviews can't be muted)
+            let reviewCount = state.reviewRequests.count
+
+            // Count open PRs needing attention, excluding muted ones
+            let unmutedAttentionPRs = state.openPRs.filter {
+                $0.needsAttention == true && !mutedIds.contains($0.id)
+            }.count
+
+            // Note: notifications intentionally don't affect the badge
+            return reviewCount + unmutedAttentionPRs
+        }
+        .removeDuplicates()
+        .receive(on: DispatchQueue.main)
+        .sink { [weak self] count in
+            self?.updateBadge(count: count)
+        }
     }
 
     // MARK: - Actions
@@ -103,44 +123,101 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             popover.performClose(nil)
         } else {
             popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
-
-            // Cancel any existing refresh and start a new one
-            refreshTask?.cancel()
-            refreshTask = Task {
-                await GitHubService.shared.refresh()
-            }
         }
+    }
+
+    // MARK: - Settings Window
+
+    @MainActor
+    func showSettings() {
+        // Close popover first
+        popover?.performClose(nil)
+
+        if let window = settingsWindow {
+            window.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+            return
+        }
+
+        let hostingView = NSHostingView(rootView: SettingsView())
+        let fittingSize = hostingView.fittingSize
+
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: fittingSize.width, height: fittingSize.height),
+            styleMask: [.titled, .closable],
+            backing: .buffered,
+            defer: false
+        )
+        window.title = "GitHub Menu Bar Settings"
+        window.contentView = hostingView
+        window.center()
+        window.isReleasedWhenClosed = false
+        window.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+
+        settingsWindow = window
+    }
+
+    // MARK: - Color Preview (DevMode)
+
+    @MainActor
+    func showColorPreview() {
+        popover?.performClose(nil)
+
+        if let window = colorPreviewWindow {
+            window.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+            return
+        }
+
+        let hostingView = NSHostingView(rootView: ColorPreviewView())
+        let fittingSize = hostingView.fittingSize
+
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: fittingSize.width, height: fittingSize.height),
+            styleMask: [.titled, .closable],
+            backing: .buffered,
+            defer: false
+        )
+        window.title = "Color Preview (DevMode)"
+        window.contentView = hostingView
+        window.center()
+        window.isReleasedWhenClosed = false
+        window.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+
+        colorPreviewWindow = window
     }
 
     // MARK: - Badge
 
-    /// Update the menu bar icon with a badge count
+    private var dotView: NSView?
+
+    /// Update the menu bar icon with a notification dot
     @MainActor
     private func updateBadge(count: Int) {
         guard let button = statusItem.button else { return }
 
+        // Always set the template icon
+        button.image = NSImage(
+            systemSymbolName: Constants.menuBarIcon,
+            accessibilityDescription: "GitHub"
+        )
+
         if count > 0 {
-            // Create attributed string with badge
-            let attachment = NSTextAttachment()
-            attachment.image = NSImage(
-                systemSymbolName: Constants.menuBarIcon,
-                accessibilityDescription: "GitHub"
-            )
-
-            let attrString = NSMutableAttributedString(attachment: attachment)
-            attrString.append(NSAttributedString(string: " \(count)", attributes: [
-                .font: NSFont.monospacedDigitSystemFont(ofSize: 10, weight: .medium),
-                .foregroundColor: NSColor.systemRed
-            ]))
-
-            button.attributedTitle = attrString
-            button.image = nil
+            // Add orange dot if not already present
+            if dotView == nil {
+                let dot = NSView(frame: NSRect(x: button.bounds.width - 8, y: button.bounds.height - 8, width: 6, height: 6))
+                dot.wantsLayer = true
+                dot.layer?.backgroundColor = NSColor.systemOrange.cgColor
+                dot.layer?.cornerRadius = 3
+                button.addSubview(dot)
+                dotView = dot
+            }
+            dotView?.isHidden = false
         } else {
-            button.attributedTitle = NSAttributedString()
-            button.image = NSImage(
-                systemSymbolName: Constants.menuBarIcon,
-                accessibilityDescription: "GitHub"
-            )
+            // Hide the dot
+            dotView?.isHidden = true
         }
     }
 }

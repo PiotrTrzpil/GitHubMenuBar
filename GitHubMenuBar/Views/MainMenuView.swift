@@ -85,7 +85,7 @@ struct ContentScrollView: View {
                     SectionView(
                         title: "Open PRs",
                         count: service.state.openPRs.count,
-                        color: .green
+                        color: AppColors.openPRs
                     ) {
                         ForEach(service.state.openPRs) { pr in
                             OpenPRRow(pr: pr)
@@ -98,7 +98,7 @@ struct ContentScrollView: View {
                     SectionView(
                         title: "Review Requests",
                         count: service.state.reviewRequests.count,
-                        color: .orange
+                        color: AppColors.reviewRequests
                     ) {
                         ForEach(service.state.reviewRequests) { review in
                             ReviewRequestRow(review: review)
@@ -111,7 +111,7 @@ struct ContentScrollView: View {
                     SectionView(
                         title: "Merged (3 days)",
                         count: service.state.mergedPRs.count,
-                        color: .purple
+                        color: AppColors.mergedPRs
                     ) {
                         ForEach(service.state.mergedPRs) { pr in
                             MergedPRRow(pr: pr)
@@ -124,7 +124,7 @@ struct ContentScrollView: View {
                     SectionView(
                         title: "Notifications (24h)",
                         count: service.state.notifications.count,
-                        color: .blue
+                        color: AppColors.notifications
                     ) {
                         ForEach(service.state.notifications.prefix(10)) { notif in
                             NotificationRow(notification: notif)
@@ -137,7 +137,7 @@ struct ContentScrollView: View {
                     SectionView(
                         title: "My Issues (24h)",
                         count: service.state.issues.count,
-                        color: .orange
+                        color: AppColors.issues
                     ) {
                         ForEach(service.state.issues.prefix(8)) { issue in
                             IssueRow(issue: issue)
@@ -152,7 +152,7 @@ struct ContentScrollView: View {
                     VStack(spacing: 8) {
                         Image(systemName: "checkmark.circle")
                             .font(.largeTitle)
-                            .foregroundColor(.green)
+                            .foregroundColor(AppColors.success)
                         Text("All caught up!")
                             .font(.headline)
                         Text("No pending items")
@@ -226,7 +226,7 @@ struct ErrorView: View {
         VStack(spacing: 12) {
             Image(systemName: "exclamationmark.triangle")
                 .font(.largeTitle)
-                .foregroundColor(.red)
+                .foregroundColor(AppColors.warning)
 
             Text("Error")
                 .font(.headline)
@@ -239,7 +239,7 @@ struct ErrorView: View {
             if error.contains("auth") {
                 Text("Run `gh auth login` in Terminal")
                     .font(.caption)
-                    .foregroundColor(.blue)
+                    .foregroundColor(AppColors.link)
                     .padding(.top, 4)
             }
 
@@ -261,15 +261,26 @@ struct FooterView: View {
     var body: some View {
         HStack {
             if let lastUpdated = service.state.lastUpdated {
-                Text("Updated \(lastUpdated.relativeFormatted)")
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
+                TimelineView(.periodic(from: .now, by: 30)) { _ in
+                    Text("Updated \(lastUpdated.relativeFormatted)")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
             }
 
             Spacer()
 
+            #if DEBUG
+            Button("🎨") {
+                AppDelegate.shared?.showColorPreview()
+            }
+            .buttonStyle(.plain)
+            .font(.caption)
+            .help("Color Preview (DevMode)")
+            #endif
+
             Button("Settings...") {
-                NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+                AppDelegate.shared?.showSettings()
             }
             .buttonStyle(.plain)
             .font(.caption)
