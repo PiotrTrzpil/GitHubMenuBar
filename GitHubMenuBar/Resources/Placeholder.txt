@@ -1,0 +1,2 @@
+This file exists to ensure the Resources folder is included in the Swift package.
+Add any additional resources (images, assets, etc.) to this folder.
