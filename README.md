@@ -2,8 +2,8 @@
 
 A native macOS menu bar app for monitoring your GitHub activity.
 
-![macOS](https://img.shields.io/badge/macOS-13%2B-blue)
-![Swift](https://img.shields.io/badge/Swift-5.9-orange)
+![macOS](https://img.shields.io/badge/macOS-14%2B-blue)
+![Swift](https://img.shields.io/badge/Swift-6.0-orange)
 ![License](https://img.shields.io/badge/License-MIT-green)
 
 ## Features
@@ -20,7 +20,7 @@ A native macOS menu bar app for monitoring your GitHub activity.
 
 ## Requirements
 
-- macOS 13.0 (Ventura) or later
+- macOS 14.0 (Sonoma) or later
 - [GitHub CLI](https://cli.github.com/) installed and authenticated
 
 ## Installation

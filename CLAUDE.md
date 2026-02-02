@@ -5,7 +5,7 @@ A native macOS menu bar app for GitHub activity. Uses GitHub CLI (`gh`) for auth
 ## Prerequisites
 
 - macOS 14.0+
-- Xcode 15.2+
+- Xcode 16+ (Swift 6.0+)
 - GitHub CLI: `brew install gh && gh auth login`
 
 ## Build Commands
@@ -21,7 +21,7 @@ just clean        # Clean build artifacts
 
 ## Architecture
 
-- **Swift 5.9 / SwiftUI** with `@Observable` and `@MainActor` for thread safety
+- **Swift 6 / SwiftUI** with `@Observable` and `@MainActor` for thread safety
 - **Menu bar:** NSStatusItem with NSPanel (see `AppDelegate` in GitHubMenuBarApp.swift)
 - **No external dependencies** - pure Swift + AppKit
 
