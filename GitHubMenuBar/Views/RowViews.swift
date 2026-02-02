@@ -2,6 +2,7 @@ import SwiftUI
 
 // MARK: - Open PR Row
 
+@MainActor
 struct OpenPRRow: View {
     let pr: PullRequest
     @Environment(GitHubService.self) var service

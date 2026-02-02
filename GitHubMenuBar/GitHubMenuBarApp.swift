@@ -369,6 +369,7 @@ final class MenuPanel: NSPanel {
 // MARK: - Panel Content View
 
 /// Wrapper view that adds the rounded background styling
+@MainActor
 private struct PanelContentView: View {
     @Environment(GitHubService.self) var service
 

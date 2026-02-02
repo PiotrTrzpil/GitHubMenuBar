@@ -2,6 +2,7 @@ import SwiftUI
 
 // MARK: - PR Preview View
 
+@MainActor
 struct PRPreviewView: View {
     let pr: PullRequest
     @Environment(GitHubService.self) var service
