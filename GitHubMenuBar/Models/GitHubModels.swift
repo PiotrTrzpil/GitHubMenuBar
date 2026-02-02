@@ -143,6 +143,9 @@ struct GitHubState {
     var error: String?
     var username: String?
 
+    // PR Preview state
+    var previewState = PRPreviewState()
+
     var needsAttentionCount: Int {
         openPRs.filter { $0.needsAttention == true }.count + reviewRequests.count
     }

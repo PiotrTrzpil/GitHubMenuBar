@@ -6,6 +6,7 @@ struct OpenPRRow: View {
     let pr: PullRequest
     @Environment(GitHubService.self) var service
     @State private var isHovered = false
+    @State private var hoverTask: Task<Void, Never>?
 
     private var isMuted: Bool {
         service.isMuted(pr.id)
@@ -153,7 +154,28 @@ struct OpenPRRow: View {
         }
         .background(AppColors.cardBackground(hovered: isHovered))
         .cornerRadius(6)
-        .onHover { isHovered = $0 }
+        .onHover { hovering in
+            isHovered = hovering
+            hoverTask?.cancel()
+
+            if hovering {
+                // Show preview after 0.5 second delay
+                hoverTask = Task {
+                    try? await Task.sleep(for: .milliseconds(500))
+                    if !Task.isCancelled {
+                        service.setHoveredPR(pr.id)
+                    }
+                }
+            } else {
+                // Delay clear to allow moving to preview pane
+                hoverTask = Task {
+                    try? await Task.sleep(for: .milliseconds(150))
+                    if !Task.isCancelled {
+                        service.clearHoveredPR()
+                    }
+                }
+            }
+        }
         .opacity(isMuted ? 0.6 : 1.0)
     }
 }

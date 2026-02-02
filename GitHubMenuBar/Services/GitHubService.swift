@@ -7,7 +7,8 @@ import AppKit
 final class GitHubService {
     static let shared = GitHubService()
 
-    private(set) var state = GitHubState()
+    // Note: internal set needed for extensions in other files
+    var state = GitHubState()
     let mutedPRs = MutedPRsManager.shared
 
     private var refreshTimer: Timer?

@@ -1,32 +1,7 @@
 import SwiftUI
 
-struct MainMenuView: View {
-    @Environment(GitHubService.self) var service
-
-    var body: some View {
-        VStack(spacing: 0) {
-            // Header
-            HeaderView()
-
-            Divider()
-
-            // Content
-            if service.state.isLoading && service.state.lastUpdated == nil {
-                LoadingView()
-            } else if let error = service.state.error {
-                ErrorView(error: error)
-            } else {
-                ContentScrollView()
-            }
-
-            Divider()
-
-            // Footer
-            FooterView()
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-}
+// Note: MainMenuView is no longer used - content is in PanelContentView in GitHubMenuBarApp.swift
+// This file now just contains the supporting views
 
 // MARK: - Header
 
