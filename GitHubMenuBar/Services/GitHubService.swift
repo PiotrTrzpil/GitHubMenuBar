@@ -253,7 +253,9 @@ final class GitHubService: ObservableObject {
             queue: .main
         ) { [weak self] _ in
             // Restart timer with new interval when settings change
-            self?.startAutoRefresh()
+            Task { @MainActor in
+                self?.startAutoRefresh()
+            }
         }
     }
 

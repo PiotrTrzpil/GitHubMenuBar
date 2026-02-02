@@ -9,11 +9,12 @@ final class GitHubCLITests: XCTestCase {
 
     override func setUp() {
         super.setUp()
-        // Find gh binary
+        // Find gh binary (keep in sync with GitHubCLI.possiblePaths)
         let possiblePaths = [
-            "/opt/homebrew/bin/gh",
-            "/usr/local/bin/gh",
-            "/run/current-system/sw/bin/gh"
+            "/opt/homebrew/bin/gh",  // Apple Silicon Homebrew
+            "/usr/local/bin/gh",      // Intel Homebrew
+            "/run/current-system/sw/bin/gh",  // NixOS
+            "/etc/profiles/per-user/\(NSUserName())/bin/gh"  // Nix home-manager
         ]
         ghPath = possiblePaths.first { FileManager.default.fileExists(atPath: $0) }
     }
