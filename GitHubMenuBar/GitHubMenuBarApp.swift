@@ -29,7 +29,7 @@ struct GitHubMenuBarApp: App {
 
 /// App delegate handles the menu bar status item and panel
 final class AppDelegate: NSObject, NSApplicationDelegate {
-    static private(set) var shared: AppDelegate!
+    @MainActor static private(set) var shared: AppDelegate!
 
     private lazy var statusItem: NSStatusItem = {
         NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)

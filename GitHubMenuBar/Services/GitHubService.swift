@@ -57,7 +57,8 @@ final class GitHubService {
         refreshTimer?.invalidate()
         let interval = TimeInterval(refreshIntervalMinutes * 60)
         refreshTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
-            Task { @MainActor in
+            guard let self else { return }
+            Task { @MainActor [weak self] in
                 await self?.refresh()
             }
         }
@@ -69,8 +70,9 @@ final class GitHubService {
             object: nil,
             queue: .main
         ) { [weak self] _ in
+            guard let self else { return }
             // Restart timer with new interval when settings change
-            Task { @MainActor in
+            Task { @MainActor [weak self] in
                 self?.startAutoRefresh()
             }
         }
