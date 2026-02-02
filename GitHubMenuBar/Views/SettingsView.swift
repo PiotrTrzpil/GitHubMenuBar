@@ -1,3 +1,4 @@
+import ServiceManagement
 import SwiftUI
 
 // MARK: - CLI Status
@@ -59,9 +60,19 @@ struct SettingsView: View {
 
     @State private var cliStatus: CLIStatus = .notFound
     @State private var isCheckingStatus = true
+    @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
 
     var body: some View {
         Form {
+            Section {
+                Toggle("Start at Login", isOn: $launchAtLogin)
+                    .onChange(of: launchAtLogin) { _, newValue in
+                        setLaunchAtLogin(enabled: newValue)
+                    }
+            } header: {
+                Text("General")
+            }
+
             Section {
                 Picker("Refresh interval", selection: $refreshInterval) {
                     Text("1 minute").tag(1)
@@ -239,6 +250,19 @@ struct SettingsView: View {
         if let appleScript = NSAppleScript(source: script) {
             var error: NSDictionary?
             appleScript.executeAndReturnError(&error)
+        }
+    }
+
+    private func setLaunchAtLogin(enabled: Bool) {
+        do {
+            if enabled {
+                try SMAppService.mainApp.register()
+            } else {
+                try SMAppService.mainApp.unregister()
+            }
+        } catch {
+            // If registration fails, revert the toggle
+            launchAtLogin = SMAppService.mainApp.status == .enabled
         }
     }
 }

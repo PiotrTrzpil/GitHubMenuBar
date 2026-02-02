@@ -1,5 +1,4 @@
 import SwiftUI
-import Combine
 
 // MARK: - Constants
 
@@ -37,7 +36,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var colorPreviewWindow: NSWindow?
 
     private var refreshTask: Task<Void, Never>?
-    private var badgeSubscription: AnyCancellable?
+    private var badgeObservationTask: Task<Void, Never>?
 
     @MainActor
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -58,7 +57,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         refreshTask?.cancel()
-        badgeSubscription?.cancel()
+        badgeObservationTask?.cancel()
     }
 
     // MARK: - Setup
@@ -83,34 +82,42 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         newPopover.animates = true
         newPopover.contentViewController = NSHostingController(
             rootView: MainMenuView()
-                .environmentObject(GitHubService.shared)
+                .environment(GitHubService.shared)
         )
         popover = newPopover
     }
 
     @MainActor
     private func setupBadgeUpdates() {
-        // Subscribe to state and muted PRs changes, excluding muted items from badge count
-        badgeSubscription = Publishers.CombineLatest(
-            GitHubService.shared.$state,
-            GitHubService.shared.$mutedPRIds
-        )
-        .map { state, mutedIds in
-            // Count review requests (incoming reviews can't be muted)
-            let reviewCount = state.reviewRequests.count
+        // Use observation tracking to react to state and muted PRs changes
+        badgeObservationTask = Task { @MainActor [weak self] in
+            var lastCount = -1
+            while !Task.isCancelled {
+                let count = withObservationTracking {
+                    let service = GitHubService.shared
+                    // Count review requests (incoming reviews can't be muted)
+                    let reviewCount = service.state.reviewRequests.count
 
-            // Count open PRs needing attention, excluding muted ones
-            let unmutedAttentionPRs = state.openPRs.filter {
-                $0.needsAttention == true && !mutedIds.contains($0.id)
-            }.count
+                    // Count open PRs needing attention, excluding muted ones
+                    let unmutedAttentionPRs = service.state.openPRs.filter {
+                        $0.needsAttention == true && !service.mutedPRIds.contains($0.id)
+                    }.count
 
-            // Note: notifications intentionally don't affect the badge
-            return reviewCount + unmutedAttentionPRs
-        }
-        .removeDuplicates()
-        .receive(on: DispatchQueue.main)
-        .sink { [weak self] count in
-            self?.updateBadge(count: count)
+                    // Note: notifications intentionally don't affect the badge
+                    return reviewCount + unmutedAttentionPRs
+                } onChange: {
+                    // This closure is called when any observed property changes
+                }
+
+                // Only update badge if count changed (like removeDuplicates)
+                if count != lastCount {
+                    self?.updateBadge(count: count)
+                    lastCount = count
+                }
+
+                // Wait for the next change notification
+                try? await Task.sleep(for: .milliseconds(100))
+            }
         }
     }
 
@@ -135,7 +142,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         if let window = settingsWindow {
             window.makeKeyAndOrderFront(nil)
-            NSApp.activate(ignoringOtherApps: true)
+            NSApp.activate()
             return
         }
 
@@ -153,7 +160,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         window.center()
         window.isReleasedWhenClosed = false
         window.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
+        NSApp.activate()
 
         settingsWindow = window
     }
@@ -166,7 +173,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         if let window = colorPreviewWindow {
             window.makeKeyAndOrderFront(nil)
-            NSApp.activate(ignoringOtherApps: true)
+            NSApp.activate()
             return
         }
 
@@ -184,7 +191,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         window.center()
         window.isReleasedWhenClosed = false
         window.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
+        NSApp.activate()
 
         colorPreviewWindow = window
     }

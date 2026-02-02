@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct MainMenuView: View {
-    @EnvironmentObject var service: GitHubService
+    @Environment(GitHubService.self) var service
 
     var body: some View {
         VStack(spacing: 0) {
@@ -31,7 +31,7 @@ struct MainMenuView: View {
 // MARK: - Header
 
 struct HeaderView: View {
-    @EnvironmentObject var service: GitHubService
+    @Environment(GitHubService.self) var service
 
     var body: some View {
         HStack {
@@ -75,7 +75,7 @@ struct HeaderView: View {
 // MARK: - Content
 
 struct ContentScrollView: View {
-    @EnvironmentObject var service: GitHubService
+    @Environment(GitHubService.self) var service
     @AppStorage("mergedDays") private var mergedDays = 3
     @AppStorage("notificationHours") private var notificationHours = 24
 
@@ -235,7 +235,7 @@ struct LoadingView: View {
 
 struct ErrorView: View {
     let error: String
-    @EnvironmentObject var service: GitHubService
+    @Environment(GitHubService.self) var service
 
     var body: some View {
         VStack(spacing: 12) {
@@ -271,7 +271,7 @@ struct ErrorView: View {
 // MARK: - Footer
 
 struct FooterView: View {
-    @EnvironmentObject var service: GitHubService
+    @Environment(GitHubService.self) var service
 
     var body: some View {
         HStack {

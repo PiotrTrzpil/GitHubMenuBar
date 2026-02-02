@@ -4,7 +4,7 @@ import SwiftUI
 
 struct OpenPRRow: View {
     let pr: PullRequest
-    @EnvironmentObject var service: GitHubService
+    @Environment(GitHubService.self) var service
     @State private var isHovered = false
 
     private var isMuted: Bool {
@@ -162,7 +162,7 @@ struct OpenPRRow: View {
 
 struct MergedPRRow: View {
     let pr: PullRequest
-    @EnvironmentObject var service: GitHubService
+    @Environment(GitHubService.self) var service
     @State private var isHovered = false
 
     var body: some View {
@@ -224,7 +224,7 @@ struct MergedPRRow: View {
 
 struct ReviewRequestRow: View {
     let review: ReviewRequest
-    @EnvironmentObject var service: GitHubService
+    @Environment(GitHubService.self) var service
     @State private var isHovered = false
 
     var body: some View {
@@ -275,7 +275,7 @@ struct ReviewRequestRow: View {
 
 struct NotificationRow: View {
     let notification: GitHubNotification
-    @EnvironmentObject var service: GitHubService
+    @Environment(GitHubService.self) var service
     @State private var isHovered = false
 
     private var icon: (name: String, color: Color) {
@@ -350,7 +350,7 @@ struct NotificationRow: View {
 
 struct IssueRow: View {
     let issue: Issue
-    @EnvironmentObject var service: GitHubService
+    @Environment(GitHubService.self) var service
     @State private var isHovered = false
 
     var body: some View {

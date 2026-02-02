@@ -1,5 +1,4 @@
 import Foundation
-import Combine
 import AppKit
 
 /// Known paths where the GitHub CLI binary might be installed
@@ -19,11 +18,12 @@ enum GitHubCLI {
 
 /// Service for fetching GitHub data using the `gh` CLI
 @MainActor
-final class GitHubService: ObservableObject {
+@Observable
+final class GitHubService {
     static let shared = GitHubService()
 
-    @Published private(set) var state = GitHubState()
-    @Published private(set) var mutedPRIds: Set<String> = []
+    private(set) var state = GitHubState()
+    private(set) var mutedPRIds: Set<String> = []
 
     // Tracks when each PR was muted (for auto-unmute feature)
     private var mutedPRTimestamps: [String: Date] = [:]
