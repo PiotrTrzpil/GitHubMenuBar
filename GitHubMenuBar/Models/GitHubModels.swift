@@ -156,15 +156,6 @@ enum CIStatus {
     case pending
     case unknown
 
-    var color: String {
-        switch self {
-        case .success: return "green"
-        case .failure: return "red"
-        case .pending: return "yellow"
-        case .unknown: return "gray"
-        }
-    }
-
     static func from(checks: [StatusCheck]?) -> CIStatus {
         guard let checks = checks, !checks.isEmpty else { return .unknown }
 

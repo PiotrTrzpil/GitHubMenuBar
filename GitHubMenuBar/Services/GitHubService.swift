@@ -2,6 +2,21 @@ import Foundation
 import Combine
 import AppKit
 
+/// Known paths where the GitHub CLI binary might be installed
+enum GitHubCLI {
+    static let possiblePaths = [
+        "/opt/homebrew/bin/gh",  // Apple Silicon Homebrew
+        "/usr/local/bin/gh",      // Intel Homebrew
+        "/run/current-system/sw/bin/gh",  // NixOS
+        "/etc/profiles/per-user/\(NSUserName())/bin/gh"  // Nix home-manager
+    ]
+
+    /// Find the first available gh binary path
+    static var path: String? {
+        possiblePaths.first { FileManager.default.fileExists(atPath: $0) }
+    }
+}
+
 /// Service for fetching GitHub data using the `gh` CLI
 @MainActor
 final class GitHubService: ObservableObject {
@@ -58,6 +73,8 @@ final class GitHubService: ObservableObject {
         decoder.dateDecodingStrategy = .iso8601
         return decoder
     }()
+
+    private let iso8601Formatter = ISO8601DateFormatter()
 
     private init() {
         loadMutedPRs()
@@ -158,7 +175,7 @@ final class GitHubService: ObservableObject {
             // Check comments
             for comment in comments {
                 guard let createdAtStr = comment["created_at"] as? String,
-                      let createdAt = ISO8601DateFormatter().date(from: createdAtStr),
+                      let createdAt = iso8601Formatter.date(from: createdAtStr),
                       createdAt > muteTime else { continue }
 
                 guard let user = comment["user"] as? [String: Any],
@@ -185,7 +202,7 @@ final class GitHubService: ObservableObject {
             // Check reviews
             for review in reviews {
                 guard let submittedAtStr = review["submitted_at"] as? String,
-                      let submittedAt = ISO8601DateFormatter().date(from: submittedAtStr),
+                      let submittedAt = iso8601Formatter.date(from: submittedAtStr),
                       submittedAt > muteTime else { continue }
 
                 guard let user = review["user"] as? [String: Any],
@@ -298,14 +315,7 @@ final class GitHubService: ObservableObject {
                 let process = Process()
 
                 // Find gh binary - GUI apps don't inherit shell PATH
-                let possiblePaths = [
-                    "/opt/homebrew/bin/gh",  // Apple Silicon Homebrew
-                    "/usr/local/bin/gh",      // Intel Homebrew
-                    "/run/current-system/sw/bin/gh",  // NixOS
-                    "/etc/profiles/per-user/\(NSUserName())/bin/gh"  // Nix home-manager
-                ]
-
-                guard let ghPath = possiblePaths.first(where: { FileManager.default.fileExists(atPath: $0) }) else {
+                guard let ghPath = GitHubCLI.path else {
                     continuation.resume(throwing: GitHubError.cliError("GitHub CLI not found. Install with: brew install gh"))
                     return
                 }
@@ -362,8 +372,8 @@ final class GitHubService: ObservableObject {
     }
 
     private func fetchMyPRs(mergedDays: Int = 3) async throws -> (open: [PullRequest], merged: [PullRequest], closed: [PullRequest]) {
-        let since = Calendar.current.date(byAdding: .day, value: -mergedDays, to: Date())!
-        let sinceStr = ISO8601DateFormatter().string(from: since).prefix(10) // YYYY-MM-DD
+        let since = Calendar.current.date(byAdding: .day, value: -mergedDays, to: Date()) ?? Date()
+        let sinceStr = iso8601Formatter.string(from: since).prefix(10) // YYYY-MM-DD
 
         // Fetch open, merged, and closed PRs concurrently
         async let openTask = runGHJSON([
@@ -578,8 +588,8 @@ final class GitHubService: ObservableObject {
     }
 
     private func fetchNotifications(hours: Int) async throws -> [GitHubNotification] {
-        let since = Calendar.current.date(byAdding: .hour, value: -hours, to: Date())!
-        let sinceStr = ISO8601DateFormatter().string(from: since)
+        let since = Calendar.current.date(byAdding: .hour, value: -hours, to: Date()) ?? Date()
+        let sinceStr = iso8601Formatter.string(from: since)
 
         let jqFilter = """
         .[] | select(.updated_at > "\(sinceStr)") | {reason, title: .subject.title, url: .subject.url, repo_url: .repository.html_url, updated_at: .updated_at}
@@ -596,7 +606,7 @@ final class GitHubService: ObservableObject {
     }
 
     private func fetchMyIssues(hours: Int) async throws -> [Issue] {
-        let since = Calendar.current.date(byAdding: .hour, value: -hours, to: Date())!
+        let since = Calendar.current.date(byAdding: .hour, value: -hours, to: Date()) ?? Date()
 
         let issues: [Issue] = try await runGHJSON([
             "search", "issues",

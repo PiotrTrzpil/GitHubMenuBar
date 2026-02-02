@@ -8,14 +8,7 @@ enum CLIStatus {
     case authenticated(path: String, user: String)
 
     static func check() -> CLIStatus {
-        let possiblePaths = [
-            "/opt/homebrew/bin/gh",
-            "/usr/local/bin/gh",
-            "/run/current-system/sw/bin/gh",
-            "/etc/profiles/per-user/\(NSUserName())/bin/gh"
-        ]
-
-        guard let ghPath = possiblePaths.first(where: { FileManager.default.fileExists(atPath: $0) }) else {
+        guard let ghPath = GitHubCLI.path else {
             return .notFound
         }
 
@@ -56,7 +49,6 @@ enum CLIStatus {
 
 struct SettingsView: View {
     @AppStorage("refreshInterval") private var refreshInterval = 5
-    @AppStorage("showNotifications") private var showNotifications = true
     @AppStorage("notificationHours") private var notificationHours = 24
     @AppStorage("mergedDays") private var mergedDays = 3
 
@@ -95,13 +87,6 @@ struct SettingsView: View {
                 }
             } header: {
                 Text("Data")
-            }
-
-            Section {
-                Toggle("Show system notifications", isOn: $showNotifications)
-                    .help("Show macOS notifications for new review requests")
-            } header: {
-                Text("Notifications")
             }
 
             Section {

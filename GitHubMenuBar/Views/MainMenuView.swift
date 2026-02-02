@@ -76,6 +76,20 @@ struct HeaderView: View {
 
 struct ContentScrollView: View {
     @EnvironmentObject var service: GitHubService
+    @AppStorage("mergedDays") private var mergedDays = 3
+    @AppStorage("notificationHours") private var notificationHours = 24
+
+    private var mergedTitle: String {
+        mergedDays == 1 ? "Merged (1 day)" : "Merged (\(mergedDays) days)"
+    }
+
+    private var notificationTitle: String {
+        "Notifications (\(notificationHours)h)"
+    }
+
+    private var issuesTitle: String {
+        "My Issues (\(notificationHours)h)"
+    }
 
     var body: some View {
         ScrollView {
@@ -109,7 +123,7 @@ struct ContentScrollView: View {
                 // Merged PRs
                 if !service.state.mergedPRs.isEmpty {
                     SectionView(
-                        title: "Merged (3 days)",
+                        title: mergedTitle,
                         count: service.state.mergedPRs.count,
                         color: AppColors.mergedPRs
                     ) {
@@ -122,7 +136,7 @@ struct ContentScrollView: View {
                 // Notifications
                 if !service.state.notifications.isEmpty {
                     SectionView(
-                        title: "Notifications (24h)",
+                        title: notificationTitle,
                         count: service.state.notifications.count,
                         color: AppColors.notifications
                     ) {
@@ -135,7 +149,7 @@ struct ContentScrollView: View {
                 // Issues
                 if !service.state.issues.isEmpty {
                     SectionView(
-                        title: "My Issues (24h)",
+                        title: issuesTitle,
                         count: service.state.issues.count,
                         color: AppColors.issues
                     ) {
@@ -148,7 +162,8 @@ struct ContentScrollView: View {
                 // Empty state
                 if service.state.openPRs.isEmpty &&
                    service.state.reviewRequests.isEmpty &&
-                   service.state.notifications.isEmpty {
+                   service.state.notifications.isEmpty &&
+                   service.state.issues.isEmpty {
                     VStack(spacing: 8) {
                         Image(systemName: "checkmark.circle")
                             .font(.largeTitle)
