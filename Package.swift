@@ -15,7 +15,14 @@ let package = Package(
             path: "GitHubMenuBar",
             resources: [
                 .process("Resources")
+            ],
+            swiftSettings: [
+                .define("DEBUG", .when(configuration: .debug))
             ]
+        ),
+        .testTarget(
+            name: "GitHubMenuBarTests",
+            path: "Tests"
         )
     ]
 )

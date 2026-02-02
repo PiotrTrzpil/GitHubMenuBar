@@ -59,6 +59,10 @@ install: app
     cp -R "GitHub Menu Bar.app" ~/Applications/
     echo "Installed to ~/Applications"
 
+# Run tests
+test:
+    swift test
+
 # Clean build artifacts
 clean:
     rm -rf .build "GitHub Menu Bar.app"
