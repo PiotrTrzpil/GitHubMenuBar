@@ -11,10 +11,12 @@ A native macOS menu bar app for monitoring your GitHub activity.
 - **Open PRs** — Track your pull requests with CI status, review progress, and conflict detection
 - **Review Requests** — See PRs waiting for your review
 - **Merged PRs** — Recently merged PRs with diff stats
-- **Notifications** — GitHub notifications from the last 24 hours
+- **Notifications** — GitHub notifications
 - **Issues** — Your open issues with recent activity
 - **Attention Indicators** — Visual cues for PRs needing attention (conflicts, CI failures)
-- **Auto-refresh** — Updates every 5 minutes
+- **PR Muting** — Mute noisy PRs; auto-unmute when someone @mentions you or leaves a review
+- **Configurable** — Adjust refresh interval, notification window, and merged PR timeframe
+- **Auto-refresh** — Configurable interval (default: 5 minutes)
 
 ## Requirements
 
@@ -33,9 +35,6 @@ gh auth login
 ### 2. Build and Install
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/GitHubMenuBar.git
-cd GitHubMenuBar
-
 # Using just (recommended)
 just install
 

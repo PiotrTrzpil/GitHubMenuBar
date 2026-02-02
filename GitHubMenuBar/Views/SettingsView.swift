@@ -153,8 +153,6 @@ struct SettingsView: View {
                     Text("1.0.0")
                         .foregroundColor(.secondary)
                 }
-
-                Link("View on GitHub", destination: URL(string: "https://github.com")!)
             } header: {
                 Text("About")
             }
