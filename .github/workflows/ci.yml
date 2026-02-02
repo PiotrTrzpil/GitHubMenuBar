@@ -20,6 +20,4 @@ jobs:
         run: swift build
 
       - name: Run tests
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: swift test
+        run: swift test --filter GitHubMenuBarTests

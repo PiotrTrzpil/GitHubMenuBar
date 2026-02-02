@@ -22,7 +22,12 @@ let package = Package(
         ),
         .testTarget(
             name: "GitHubMenuBarTests",
-            path: "Tests"
+            path: "Tests",
+            exclude: ["IntegrationTests"]
+        ),
+        .testTarget(
+            name: "IntegrationTests",
+            path: "Tests/IntegrationTests"
         )
     ]
 )

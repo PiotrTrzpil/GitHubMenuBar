@@ -59,8 +59,16 @@ install: app
     cp -R "GitHub Menu Bar.app" ~/Applications/
     echo "Installed to ~/Applications"
 
-# Run tests
+# Run unit tests (no gh auth required)
 test:
+    swift test --filter GitHubMenuBarTests
+
+# Run integration tests (requires gh auth)
+test-integration:
+    swift test --filter IntegrationTests
+
+# Run all tests
+test-all:
     swift test
 
 # Clean build artifacts
