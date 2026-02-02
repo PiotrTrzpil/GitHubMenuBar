@@ -119,14 +119,12 @@ private struct ErrorPreview: View {
 private struct PreviewContent: View {
     let preview: PRPreviewDetails
     let username: String?
+    @Environment(\.openURL) private var openURL
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                // Changes Summary
-                ChangesSummarySection(preview: preview)
-
-                // Reviews Section (completed + pending)
+                // Reviews Section (completed + pending) - most actionable
                 if !preview.completedReviews.isEmpty || !preview.pendingReviewers.isEmpty {
                     ReviewsSection(
                         completedReviews: preview.completedReviews,
@@ -134,19 +132,22 @@ private struct PreviewContent: View {
                     )
                 }
 
-                // Failed Workflows
+                // Failed Workflows - blocks merging
                 if !preview.failedWorkflows.isEmpty {
-                    FailedWorkflowsSection(workflows: preview.failedWorkflows)
+                    FailedWorkflowsSection(workflows: preview.failedWorkflows, openURL: openURL)
                 }
+
+                // Recent Mentions - attention needed
+                if !preview.recentMentions.isEmpty {
+                    MentionsSection(comments: preview.recentMentions, username: username, openURL: openURL)
+                }
+
+                // Changes Summary
+                ChangesSummarySection(preview: preview)
 
                 // Top Changed Files
                 if !preview.topChangedFiles.isEmpty {
-                    ChangedFilesSection(files: preview.topChangedFiles)
-                }
-
-                // Recent Mentions
-                if !preview.recentMentions.isEmpty {
-                    MentionsSection(comments: preview.recentMentions, username: username)
+                    ChangedFilesSection(files: preview.topChangedFiles, prUrl: preview.prUrl, openURL: openURL)
                 }
             }
         }
@@ -187,6 +188,8 @@ private struct ChangesSummarySection: View {
 
 private struct ChangedFilesSection: View {
     let files: [ChangedFile]
+    let prUrl: String
+    let openURL: OpenURLAction
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -194,39 +197,48 @@ private struct ChangedFilesSection: View {
 
             VStack(alignment: .leading, spacing: 4) {
                 ForEach(files) { file in
-                    HStack(spacing: 6) {
-                        // File icon based on extension
-                        Image(systemName: fileIcon(for: file.filename))
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
-                            .frame(width: 12)
+                    Button {
+                        // Open PR files tab - GitHub will scroll to the file
+                        if let url = URL(string: "\(prUrl)/files") {
+                            openURL(url)
+                        }
+                    } label: {
+                        HStack(spacing: 6) {
+                            // File icon based on extension
+                            Image(systemName: fileIcon(for: file.filename))
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                                .frame(width: 12)
 
-                        VStack(alignment: .leading, spacing: 1) {
-                            Text(file.shortName)
-                                .font(.caption)
-                                .lineLimit(1)
-
-                            if let dir = file.directory {
-                                Text(dir)
-                                    .font(.caption2)
-                                    .foregroundColor(.secondary)
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text(file.shortName)
+                                    .font(.caption)
                                     .lineLimit(1)
+
+                                if let dir = file.directory {
+                                    Text(dir)
+                                        .font(.caption2)
+                                        .foregroundColor(.secondary)
+                                        .lineLimit(1)
+                                }
+                            }
+
+                            Spacer()
+
+                            HStack(spacing: 4) {
+                                Text("+\(file.additions)")
+                                    .font(.caption2)
+                                    .foregroundColor(AppColors.additions)
+
+                                Text("-\(file.deletions)")
+                                    .font(.caption2)
+                                    .foregroundColor(AppColors.deletions)
                             }
                         }
-
-                        Spacer()
-
-                        HStack(spacing: 4) {
-                            Text("+\(file.additions)")
-                                .font(.caption2)
-                                .foregroundColor(AppColors.additions)
-
-                            Text("-\(file.deletions)")
-                                .font(.caption2)
-                                .foregroundColor(AppColors.deletions)
-                        }
+                        .padding(.vertical, 2)
+                        .contentShape(Rectangle())
                     }
-                    .padding(.vertical, 2)
+                    .buttonStyle(.plain)
                 }
             }
         }
@@ -255,6 +267,7 @@ private struct ChangedFilesSection: View {
 
 private struct FailedWorkflowsSection: View {
     let workflows: [WorkflowRun]
+    let openURL: OpenURLAction
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -262,14 +275,38 @@ private struct FailedWorkflowsSection: View {
 
             VStack(alignment: .leading, spacing: 4) {
                 ForEach(workflows) { workflow in
-                    HStack(spacing: 6) {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(.caption2)
-                            .foregroundColor(AppColors.ciFailure)
+                    if let urlString = workflow.url, let url = URL(string: urlString) {
+                        Button {
+                            openURL(url)
+                        } label: {
+                            HStack(spacing: 6) {
+                                Image(systemName: "xmark.circle.fill")
+                                    .font(.caption2)
+                                    .foregroundColor(AppColors.ciFailure)
 
-                        Text(workflow.name)
-                            .font(.caption)
-                            .lineLimit(1)
+                                Text(workflow.name)
+                                    .font(.caption)
+                                    .lineLimit(1)
+
+                                Spacer()
+
+                                Image(systemName: "arrow.up.right")
+                                    .font(.caption2)
+                                    .foregroundColor(.secondary)
+                            }
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                    } else {
+                        HStack(spacing: 6) {
+                            Image(systemName: "xmark.circle.fill")
+                                .font(.caption2)
+                                .foregroundColor(AppColors.ciFailure)
+
+                            Text(workflow.name)
+                                .font(.caption)
+                                .lineLimit(1)
+                        }
                     }
                 }
             }
@@ -354,6 +391,7 @@ private struct ReviewsSection: View {
 private struct MentionsSection: View {
     let comments: [PRComment]
     let username: String?
+    let openURL: OpenURLAction
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -361,31 +399,50 @@ private struct MentionsSection: View {
 
             VStack(alignment: .leading, spacing: 8) {
                 ForEach(comments) { comment in
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack {
-                            Text("@\(comment.author)")
-                                .font(.caption)
-                                .fontWeight(.medium)
-                                .foregroundColor(AppColors.mention)
-
-                            Spacer()
-
-                            Text(comment.createdAt.relativeFormatted)
-                                .font(.caption2)
-                                .foregroundColor(.secondary)
+                    if let urlString = comment.url, let url = URL(string: urlString) {
+                        Button {
+                            openURL(url)
+                        } label: {
+                            CommentCard(comment: comment, username: username)
                         }
-
-                        Text(highlightMention(in: comment.preview, username: username))
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                            .lineLimit(2)
+                        .buttonStyle(.plain)
+                    } else {
+                        CommentCard(comment: comment, username: username)
                     }
-                    .padding(8)
-                    .background(Color.primary.opacity(0.05))
-                    .cornerRadius(6)
                 }
             }
         }
+    }
+}
+
+private struct CommentCard: View {
+    let comment: PRComment
+    let username: String?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Text("@\(comment.author)")
+                    .font(.caption)
+                    .fontWeight(.medium)
+                    .foregroundColor(AppColors.mention)
+
+                Spacer()
+
+                Text(comment.createdAt.relativeFormatted)
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            }
+
+            Text(highlightMention(in: comment.preview, username: username))
+                .font(.caption)
+                .foregroundColor(.secondary)
+                .lineLimit(2)
+        }
+        .padding(8)
+        .background(Color.primary.opacity(0.05))
+        .cornerRadius(6)
+        .contentShape(Rectangle())
     }
 
     private func highlightMention(in text: String, username: String?) -> AttributedString {

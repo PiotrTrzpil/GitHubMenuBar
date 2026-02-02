@@ -124,7 +124,8 @@ extension GitHubService {
                             status: check["status"] as? String,
                             state: check["state"] as? String,
                             conclusion: check["conclusion"] as? String,
-                            name: check["name"] as? String
+                            name: check["name"] as? String,
+                            detailsUrl: check["detailsUrl"] as? String
                         )
                     }
                 }

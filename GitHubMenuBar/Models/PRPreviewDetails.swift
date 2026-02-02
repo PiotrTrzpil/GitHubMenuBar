@@ -5,6 +5,7 @@ import Foundation
 /// Detailed information for PR preview pane
 struct PRPreviewDetails: Equatable {
     let prId: String
+    let prUrl: String                    // GitHub PR URL for constructing file links
     let additions: Int
     let deletions: Int
     let changedFilesCount: Int
@@ -19,6 +20,7 @@ struct PRPreviewDetails: Equatable {
     static func empty(prId: String) -> PRPreviewDetails {
         PRPreviewDetails(
             prId: prId,
+            prUrl: "",
             additions: 0,
             deletions: 0,
             changedFilesCount: 0,
@@ -113,6 +115,7 @@ struct PRComment: Identifiable, Equatable {
     let author: String
     let body: String
     let createdAt: Date
+    let url: String?
 
     /// Returns a truncated preview of the comment body
     var preview: String {

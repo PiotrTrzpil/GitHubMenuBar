@@ -80,6 +80,7 @@ struct StatusCheck: Codable, Hashable {
     let state: String?
     let conclusion: String?
     let name: String?
+    let detailsUrl: String?
 }
 
 struct Author: Codable, Hashable {

@@ -120,6 +120,7 @@ extension GitHubService {
 
         return PRPreviewDetails(
             prId: pr.id,
+            prUrl: pr.url,
             additions: prDetails.additions,
             deletions: prDetails.deletions,
             changedFilesCount: prDetails.filesCount,
@@ -253,7 +254,8 @@ extension GitHubService {
                 return nil
             }
 
-            return PRComment(author: login, body: body, createdAt: createdAt)
+            let htmlUrl = comment["html_url"] as? String
+            return PRComment(author: login, body: body, createdAt: createdAt, url: htmlUrl)
         }
     }
 
@@ -269,7 +271,7 @@ extension GitHubService {
                 return WorkflowRun(
                     name: name,
                     conclusion: check.conclusion ?? check.state ?? "failure",
-                    url: nil
+                    url: check.detailsUrl
                 )
             }
     }
