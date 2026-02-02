@@ -319,6 +319,17 @@ struct NotificationRow: View {
         }
     }
 
+    private var repoName: String? {
+        // Extract repo name from repoUrl (e.g., "https://github.com/owner/repo" -> "owner/repo")
+        if let repoUrl = notification.repoUrl {
+            let components = repoUrl.components(separatedBy: "github.com/")
+            if components.count > 1 {
+                return components[1]
+            }
+        }
+        return nil
+    }
+
     private var webUrl: String? {
         if let url = notification.url {
             // Convert API URL to web URL
@@ -346,6 +357,13 @@ struct NotificationRow: View {
                     .font(.caption)
                     .foregroundColor(icon.color)
                     .frame(width: 16)
+
+                if let repoName = repoName {
+                    Text(repoName)
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                        .lineLimit(1)
+                }
 
                 Text(notification.title)
                     .font(.caption)
