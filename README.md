@@ -6,6 +6,11 @@ A native macOS menu bar app for monitoring your GitHub activity.
 ![Swift](https://img.shields.io/badge/Swift-6.0-orange)
 ![License](https://img.shields.io/badge/License-MIT-green)
 
+<p align="center">
+  <img src="docs/screenshot-prs.png" alt="Open PRs and review requests" width="320" />
+  <img src="docs/screenshot-merged.png" alt="Merged PRs and notifications" width="320" />
+</p>
+
 ## Features
 
 - **Open PRs** — Track your pull requests with CI status, review progress, and conflict detection
