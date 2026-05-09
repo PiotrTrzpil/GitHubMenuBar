@@ -7,8 +7,8 @@ A native macOS menu bar app for monitoring your GitHub activity.
 ![License](https://img.shields.io/badge/License-MIT-green)
 
 <p align="center">
-  <img src="docs/screenshot-prs-v2.png" alt="Open PRs and review requests" width="320" />
-  <img src="docs/screenshot-merged-v2.png" alt="Merged PRs and notifications" width="320" />
+  <img src="docs/screenshot-prs-v3.png" alt="Open PRs and review requests" width="320" />
+  <img src="docs/screenshot-merged-v3.png" alt="Merged PRs and notifications" width="320" />
 </p>
 
 ## Features
