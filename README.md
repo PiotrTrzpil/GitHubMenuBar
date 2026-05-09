@@ -1,4 +1,4 @@
-# <img src="docs/icon.svg" alt="" height="40" align="middle" /> GitHub Menu Bar
+# <img src="docs/icon.svg" alt="" height="32" align="top" /> GitHub Menu Bar
 
 A native macOS menu bar app for monitoring your GitHub activity.
 
