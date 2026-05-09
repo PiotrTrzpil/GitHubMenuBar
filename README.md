@@ -47,16 +47,6 @@ just install
 swift build -c release
 ```
 
-### Build Commands
-
-| Command | Description |
-|---------|-------------|
-| `just build` | Debug build |
-| `just app` | Build .app bundle |
-| `just run` | Build and run |
-| `just install` | Install to ~/Applications |
-| `just clean` | Clean build artifacts |
-
 ## Usage
 
 1. Launch the app — it appears in your menu bar
