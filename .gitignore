@@ -33,3 +33,4 @@ DerivedData/
 *.swp
 *.swo
 *~
+.vscode/
